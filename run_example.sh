@@ -27,5 +27,10 @@ if [ ! -f $DATABASE_PATH ]; then
     python example_01_setup.py
 fi
 
+# Run both methods
 python ase_dftb_qm9.py 10
 python tbmalt_run_individual.py 10
+
+# Make plot comparing them
+python make_regression_table.py
+Rscript qm9_regression.R
