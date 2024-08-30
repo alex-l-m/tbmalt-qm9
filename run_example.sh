@@ -28,3 +28,4 @@ if [ ! -f $DATABASE_PATH ]; then
 fi
 
 python ase_dftb_qm9.py 10
+python tbmalt_run_individual.py 10
