@@ -28,8 +28,8 @@ if [ ! -f $DATABASE_PATH ]; then
 fi
 
 # Run both methods
-python ase_dftb_qm9.py 10
-python tbmalt_run_individual.py 10
+python ase_dftb_qm9.py 1000
+python tbmalt_run_individual.py 1000
 
 # Make plot comparing them
 python make_regression_table.py
