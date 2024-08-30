@@ -111,7 +111,7 @@ outpath = 'tbmalt_results.csv'
 with open(outpath, 'w') as f:
     writer = csv.writer(f)
     writer.writerow(['molecule', 'status', 'energy', 'repulsive_energy', 'scc_energy', 'run_time'])
-    for geometry, orbs in zip(geometries, orbs):
+    for name, geometry, orbs in zip(mol_names, geometries, orbs):
         
         try:
             dftb_calculator(geometry, orbs)
@@ -122,8 +122,8 @@ with open(outpath, 'w') as f:
             scc_energy = dftb_calculator.scc_energy
             end_time = time()
             run_time = end_time - start_time
-            for name, energy, repulsive_energy, scc_energy \
-                    in zip(mol_names, results, repulsive_energy, scc_energy):
+            for energy, repulsive_energy, scc_energy \
+                    in zip(results, repulsive_energy, scc_energy):
                 writer.writerow([name, 'success',
                     energy.item(), repulsive_energy.item(), scc_energy.item(),
                     run_time])
