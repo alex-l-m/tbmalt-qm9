@@ -20,3 +20,5 @@ if [ ! -d "auorg-1-1" ]; then
     tar -xvf auorg-1-1.tar.xz
     rm auorg-1-1.tar.xz
 fi
+
+python ase_dftb_qm9.py 10
