@@ -2,4 +2,4 @@ Run DFTB+ and TBMaLT on QM9, and plot the total energy results compared to the Q
 
 Usage:
 
-```run_example.sh```
+```sh run_example.sh```
