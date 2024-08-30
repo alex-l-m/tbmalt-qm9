@@ -21,4 +21,10 @@ if [ ! -d "auorg-1-1" ]; then
     rm auorg-1-1.tar.xz
 fi
 
+# Download database of SK parameters for TBMalt, if not downloaded already
+DATABASE_PATH=example_dftb_parameters.h5
+if [ ! -f $DATABASE_PATH ]; then
+    python example_01_setup.py
+fi
+
 python ase_dftb_qm9.py 10
