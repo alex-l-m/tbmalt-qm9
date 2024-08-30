@@ -58,7 +58,11 @@ ase_atoms = []
 mol_names = []
 for path in xyz_paths:
     mol_id, ext = splitext(basename(path))
-    mol = next(read_xyz(open(path), 0))
+    try:
+        mol = next(read_xyz(open(path), 0))
+    except:
+        print(f'Failed on {path}')
+        continue
     # Keep it only if every atomic number is in the keys of shell_dict
     if all(atom.number in shell_dict.keys() for atom in mol):
         ase_atoms.append(mol)
