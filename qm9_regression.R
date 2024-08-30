@@ -33,6 +33,8 @@ pre_regression_table <- read_csv('regression_table.csv', col_types = cols(
     mutate(n_atoms = n_H + n_C + n_N + n_O) |>
     # Join with DFTB results
     inner_join(dftb, by = 'mol_id') |>
+    # Filter out NA rows
+    filter(!is.na(tbmalt_energy), !is.na(qm9_u0), !is.na(dftb_energy)) |>
     # Subtract out atomic contributions with regression
     mutate(tbmalt_energy_ref = predict(lm(tbmalt_energy ~ n_H + n_C + n_N + n_O)),
            qm9_u0_ref = predict(lm(qm9_u0 ~ n_H + n_C + n_N + n_O)),
