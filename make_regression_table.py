@@ -15,7 +15,7 @@ rows = []
 for row in tbmalt_results.itertuples():
     mol_id = row.molecule
     energy = row.energy
-    xyz_path = f'/home/alexlm/databases/qm9_xyz/{mol_id}.xyz'
+    xyz_path = f'qm9_xyz/{mol_id}.xyz'
     ase_atoms = next(read_xyz(open(xyz_path), 0))
     formula = Counter(ase_atoms.get_chemical_symbols())
     properties = read_properties(xyz_path)

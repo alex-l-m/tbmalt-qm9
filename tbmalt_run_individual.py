@@ -52,7 +52,7 @@ target_path = 'target_data.json'
 # to the ase.Atoms object while the latter provides information about what
 # orbitals are present and which atoms they belong two.
 # Have to do index 0 because there's extra junk at the end of the file
-xyz_paths = glob('/home/alexlm/databases/qm9_xyz/*.xyz')[:nmols]
+xyz_paths = glob('qm9_xyz/*.xyz')[:nmols]
 
 ase_atoms = []
 mol_names = []
