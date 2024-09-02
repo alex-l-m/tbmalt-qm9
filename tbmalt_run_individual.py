@@ -117,7 +117,7 @@ with open(outpath, 'w') as f:
             dftb_calculator(geometry, orbs)
             # Run the DFTB calculation
             start_time = time()
-            results = dftb_calculator(geometry, orbs)
+            results = getattr(dftb_calculator, 'total_energy')
             repulsive_energy = dftb_calculator.repulsive_energy
             scc_energy = dftb_calculator.scc_energy
             end_time = time()
