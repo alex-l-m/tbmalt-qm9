@@ -29,6 +29,8 @@ pre_regression_table <- read_csv('regression_table.csv', col_types = cols(
 )) |>
     # Convert qm9 energy to electronvolts
     mutate(qm9_u0 = qm9_u0 * TO_EV) |>
+    # Also the tbmalt energy
+    mutate(tbmalt_energy = tbmalt_energy * TO_EV) |>
     # Total number of atoms
     mutate(n_atoms = n_H + n_C + n_N + n_O) |>
     # Join with DFTB results
