@@ -29,7 +29,8 @@ fi
 
 # Run both methods
 python ase_dftb_qm9.py 1000
-python tbmalt_run_individual.py 1000
+python tbmalt_run.py 1000 0 tbmalt_results.csv
+python tbmalt_run.py 1000 1 tbmalt_results_individually.csv
 
 # Make plot comparing them
 python make_regression_table.py

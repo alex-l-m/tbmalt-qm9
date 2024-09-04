@@ -16,6 +16,13 @@ from ase.io.extxyz import read_xyz
 # Retrieve number of molecules to run on from first argument
 nmols = int(sys.argv[1])
 
+# Run all molecules in one batch or run them individually?
+run_individual = bool(int(sys.argv[2]))
+print(f'Running {nmols} molecules with TBMaLT')
+print(f'Run individual: {run_individual}')
+
+outpath = sys.argv[3]
+
 Tensor = torch.Tensor
 
 # This must be set until typecasting from HDF5 databases has been implemented.
@@ -68,7 +75,11 @@ for path in xyz_paths:
         ase_atoms.append(mol)
         mol_names.append(mol_id)
 
-geometries = [Geometry.from_ase_atoms([mol]) for mol in ase_atoms]
+if run_individual:
+    geometries = [Geometry.from_ase_atoms([mol]) for mol in ase_atoms]
+else:
+    geometry = Geometry.from_ase_atoms(ase_atoms)
+    geometries = [geometry]
 orbs = [OrbitalInfo(geometry.atomic_numbers, shell_dict, shell_resolved=False) \
         for geometry in geometries]
 
@@ -105,9 +116,17 @@ r_feed = RepulsiveSplineFeed.from_database(parameter_db_path, species)
 # 2.3: Construct the SCC-DFTB calculator object
 # ---------------------------------------------
 # calculator object.
-dftb_calculator = Dftb2(h_feed, s_feed, o_feed, u_feed, r_feed, suppress_SCF_error = False)
+dftb_calculator = Dftb2(h_feed, s_feed, o_feed, u_feed, r_feed, suppress_SCF_error = not run_individual)
+if not run_individual:
+    # But setting suppress_SCF_error actually doesn't work? I should file a bug
+    # report
+    print('Suppress SCF error setting:')
+    print(dftb_calculator.suppress_SCF_error)
+    # Setting suppress_SCF_error directly
+    dftb_calculator.suppress_SCF_error = True
+    print('New suppress SCF error setting:')
+    print(dftb_calculator.suppress_SCF_error)
 
-outpath = 'tbmalt_results.csv'
 with open(outpath, 'w') as f:
     writer = csv.writer(f)
     writer.writerow(['molecule', 'status', 'energy', 'repulsive_energy', 'scc_energy', 'run_time'])
@@ -115,13 +134,14 @@ with open(outpath, 'w') as f:
         
         try:
             dftb_calculator(geometry, orbs)
+
             # Run the DFTB calculation
             start_time = time()
             results = dftb_calculator(geometry, orbs)
             repulsive_energy = dftb_calculator.repulsive_energy
             scc_energy = dftb_calculator.scc_energy
             end_time = time()
-            run_time = end_time - start_time
+            run_time = (end_time - start_time) / len(results)
             for energy, repulsive_energy, scc_energy \
                     in zip(results, repulsive_energy, scc_energy):
                 writer.writerow([name, 'success',
