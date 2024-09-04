@@ -38,9 +38,9 @@ pre_regression_table <- read_csv('regression_table.csv', col_types = cols(
     # Filter out NA rows
     filter(!is.na(tbmalt_energy), !is.na(qm9_u0), !is.na(dftb_energy)) |>
     # Subtract out atomic contributions with regression
-    mutate(tbmalt_energy_ref = predict(lm(tbmalt_energy ~ n_H + n_C + n_N + n_O)),
-           qm9_u0_ref = predict(lm(qm9_u0 ~ n_H + n_C + n_N + n_O)),
-           dftb_energy_ref = predict(lm(dftb_energy ~ n_H + n_C + n_N + n_O)),
+    mutate(tbmalt_energy_ref = predict(lmrob(tbmalt_energy ~ n_H + n_C + n_N + n_O)),
+           qm9_u0_ref = predict(lmrob(qm9_u0 ~ n_H + n_C + n_N + n_O)),
+           dftb_energy_ref = predict(lmrob(dftb_energy ~ n_H + n_C + n_N + n_O)),
            tbmalt_energy_diff = tbmalt_energy - tbmalt_energy_ref,
            qm9_u0_diff = qm9_u0 - qm9_u0_ref,
            dftb_energy_diff = dftb_energy - dftb_energy_ref)
