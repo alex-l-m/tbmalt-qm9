@@ -59,7 +59,7 @@ target_path = 'target_data.json'
 # to the ase.Atoms object while the latter provides information about what
 # orbitals are present and which atoms they belong two.
 # Have to do index 0 because there's extra junk at the end of the file
-xyz_paths = glob('/home/alexlm/databases/qm9_xyz/*.xyz')[:nmols]
+xyz_paths = glob('qm9_xyz/*.xyz')[:nmols]
 
 ase_atoms = []
 mol_names = []
@@ -137,7 +137,7 @@ with open(outpath, 'w') as f:
 
             # Run the DFTB calculation
             start_time = time()
-            results = dftb_calculator(geometry, orbs)
+            results = getattr(dftb_calculator, 'total_energy')
             repulsive_energy = dftb_calculator.repulsive_energy
             scc_energy = dftb_calculator.scc_energy
             end_time = time()
