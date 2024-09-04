@@ -8,7 +8,7 @@ theme_set(dark_mode(theme_cowplot(font_size = 24)))
 #theme_set(theme_cowplot(font_size = 12))
 library(patchwork)
 
-dftb_results_infile <- 'ase_dft_qm9.csv'
+dftb_results_infile <- 'ase_dftb_qm9.csv'
 
 dftb <- read_csv(dftb_results_infile, col_types = 
 cols(
