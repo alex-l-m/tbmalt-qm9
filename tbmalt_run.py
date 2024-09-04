@@ -160,8 +160,6 @@ with open(outpath, 'w') as f:
         scc_energy = dftb_calculator.scc_energy
         end_time = time()
         run_time = (end_time - start_time) / nmols
-        with open(outpath, 'w') as f:
-            writer = csv.writer(f)
-            for name, energy, repulsive_energy, scc_energy \
-                    in zip(mol_names, results, repulsive_energy, scc_energy):
-                writer.writerow([name, 'NA', energy.item(), repulsive_energy.item(), scc_energy.item(), run_time])
+        for name, energy, repulsive_energy, scc_energy \
+                in zip(mol_names, results, repulsive_energy, scc_energy):
+            writer.writerow([name, 'NA', energy.item(), repulsive_energy.item(), scc_energy.item(), run_time])
