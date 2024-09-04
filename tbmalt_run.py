@@ -130,23 +130,38 @@ if not run_individual:
 with open(outpath, 'w') as f:
     writer = csv.writer(f)
     writer.writerow(['molecule', 'status', 'energy', 'repulsive_energy', 'scc_energy', 'run_time'])
-    for name, geometry, orbs in zip(mol_names, geometries, orbs):
-        
-        try:
-            dftb_calculator(geometry, orbs)
+    if run_individual:
+        for name, geometry, orbs in zip(mol_names, geometries, orbs):
+            
+            try:
+                dftb_calculator(geometry, orbs)
 
-            # Run the DFTB calculation
-            start_time = time()
-            results = getattr(dftb_calculator, 'total_energy')
-            repulsive_energy = dftb_calculator.repulsive_energy
-            scc_energy = dftb_calculator.scc_energy
-            end_time = time()
-            run_time = (end_time - start_time) / len(results)
-            for energy, repulsive_energy, scc_energy \
-                    in zip(results, repulsive_energy, scc_energy):
-                writer.writerow([name, 'success',
-                    energy.item(), repulsive_energy.item(), scc_energy.item(),
-                    run_time])
-        except ConvergenceError as e:
-            writer.writerow([name, 'ConvergenceError',
-                'NA', 'NA', 'NA', 'NA'])
+                # Run the DFTB calculation
+                start_time = time()
+                results = getattr(dftb_calculator, 'total_energy')
+                repulsive_energy = dftb_calculator.repulsive_energy
+                scc_energy = dftb_calculator.scc_energy
+                end_time = time()
+                run_time = (end_time - start_time)
+                for energy, repulsive_energy, scc_energy \
+                        in zip(results, repulsive_energy, scc_energy):
+                    writer.writerow([name, 'success',
+                        energy.item(), repulsive_energy.item(), scc_energy.item(),
+                        run_time])
+            except ConvergenceError as e:
+                writer.writerow([name, 'ConvergenceError',
+                    'NA', 'NA', 'NA', 'NA'])
+    else:
+        # Run the DFTB calculation
+        dftb_calculator(geometry, orbs[0])
+        start_time = time()
+        results = getattr(dftb_calculator, 'total_energy')
+        repulsive_energy = dftb_calculator.repulsive_energy
+        scc_energy = dftb_calculator.scc_energy
+        end_time = time()
+        run_time = (end_time - start_time) / nmols
+        with open(outpath, 'w') as f:
+            writer = csv.writer(f)
+            for name, energy, repulsive_energy, scc_energy \
+                    in zip(mol_names, results, repulsive_energy, scc_energy):
+                writer.writerow([name, 'NA', energy.item(), repulsive_energy.item(), scc_energy.item(), run_time])
