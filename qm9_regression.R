@@ -5,6 +5,7 @@ library(ggdark)
 library(tidymodels)
 library(glue)
 theme_set(dark_mode(theme_cowplot(font_size = 16)))
+library(patchwork)
 
 dftb_results_infile <- 'ase_dftb_qm9.csv'
 
@@ -13,6 +14,13 @@ cols(
   mol_id = col_character(),
   energy = col_double())) |>
     rename(dftb_energy = energy)
+
+loss <- read_csv('loss.csv', col_types = cols(
+    epoch = col_integer(),
+    split = col_character(),
+    loss = col_double()
+)) |>
+    mutate(split = factor(split, levels = c('train', 'test')))
 
 training_output <- read_csv('trained.csv', col_types = cols(
     epoch = col_integer(),
@@ -90,31 +98,34 @@ pass_filter <- nrow(regression_plot_tbl)
 all <- nrow(pre_regression_table)
 print(glue('Fraction not shown: {1 - pass_filter / all}'))
 
-combined_regression_tbl <- pre_regression_table |>
+combined_regression_tbl_wide <- pre_regression_table |>
     # Normalize by number of atoms
     mutate(`Untrained TBMaLT` = tbmalt_energy_diff / n_atoms,
            qm9_u0 = qm9_u0_diff / n_atoms,
            `Standard DFTB (DFTB+)` = dftb_energy_diff / n_atoms,
-           `Trained TBMaLT` = trained_energy_diff / n_atoms) |>
+           `Trained TBMaLT` = trained_energy_diff / n_atoms)
+combined_regression_tbl <- combined_regression_tbl_wide |>
     pivot_longer(cols = c(`Untrained TBMaLT`, `Standard DFTB (DFTB+)`, `Trained TBMaLT`),
                  names_to = 'method', values_to = 'energy_diff_peratom') |>
     # Put standard first in the plot, by converting to a factor
     mutate(method = factor(method, levels = c('Standard DFTB (DFTB+)',
                                               'Untrained TBMaLT',
                                               'Trained TBMaLT'))) |>
+    mutate(split = factor(split, levels = c('train', 'test'))) |>
     mutate(outlier = energy_diff_peratom - qm9_u0 > 0.2)
 
 write_csv(combined_regression_tbl, 'combined_regression_table.csv')
 
 
 combined_regression_plot <- combined_regression_tbl |>
+    filter(method == 'Standard DFTB (DFTB+)' | method == 'Untrained TBMaLT') |>
     ggplot(aes(y = energy_diff_peratom, x = qm9_u0)) +
     geom_abline(intercept = 0, slope = 1, color = 'blue', linetype = 'dashed') +
     geom_point(size = 0, alpha = 0.5) +
     geom_smooth(method = lmrob, se = FALSE) + 
     coord_obs_pred() +
     facet_wrap(~method, nrow = 1) +
-    ylab('Energy Difference per Atom') + xlab('QM9 DFT') +
+    ylab('DFTB') + xlab('QM9 DFT') +
     # Limits based on the range of the QM9 data
     xlim(lower_limit - .2, upper_limit + .2) +
     ylim(lower_limit - .2, upper_limit + .2)
@@ -123,3 +134,46 @@ ggsave('dftbplus_tbmalt_comparison_facet.png', combined_regression_plot,
 
 # Linear model relating the DFTB+ values to the tbmalt values
 dftb_model <- lmrob(tbmalt_energy_diff ~ dftb_energy_diff, data = pre_regression_table)
+
+# Plot comparing the DFTB+ values and the untrained TBMaLT values
+untrained_comparison_plot <- combined_regression_tbl |>
+    select(mol_id, method, energy_diff_peratom) |>
+    pivot_wider(names_from = method, values_from = energy_diff_peratom) |>
+    ggplot(aes(x = `Standard DFTB (DFTB+)`, y = `Untrained TBMaLT`)) +
+    geom_abline(intercept = 0, slope = 1, color = 'blue', linetype = 'dashed') +
+    geom_point(size = 0, alpha = 0.5) +
+    geom_smooth(method = lmrob, se = FALSE) + 
+    coord_obs_pred() +
+    ylab('Untrained TBMaLT') + xlab('Standard DFTB (DFTB+)') +
+    ggtitle('Energy - ref per atom (eV)')
+ggsave('dftbplus_tbmalt_comparison.png', untrained_comparison_plot,
+       width = unit(5.75, 'in'), height = unit(4.76, 'in'))
+
+ggsave('both_comparisons.png', untrained_comparison_plot | combined_regression_plot, 
+       width = unit(11.5, 'in'), height = unit(4.76, 'in'))
+
+# Show the test set predictions for untrained and trained TBMaLT results
+training_prediction_plots <- combined_regression_tbl |>
+    filter(method == 'Untrained TBMaLT' | method == 'Trained TBMaLT') |>
+    select(mol_id, qm9_u0, energy_diff_peratom, method, split) |>
+    ggplot(aes(x = qm9_u0, y = energy_diff_peratom)) +
+    facet_grid(split~method) +
+    geom_abline(intercept = 0, slope = 1, color = 'blue', linetype = 'dashed') +
+    geom_point(size = 0, alpha = 0.5) +
+    geom_smooth(method = lmrob, se = FALSE) +
+    coord_obs_pred() +
+    ylab('TBMaLT') + xlab('QM9 DFT')
+ggsave('training_predictions.png', training_prediction_plots,
+       width = unit(5.75, 'in'), height = unit(4.76, 'in'))
+
+# Training curves showing losses a function of epoch
+training_curves <- loss |>
+    ggplot(aes(x = epoch, y = loss, color = split)) +
+    geom_line() +
+    # Show loss on a log scale
+    scale_y_log10() +
+    ylab('Mean squared error') + xlab('Epoch') +
+    ggtitle('Loss during training') +
+    theme(legend.position = 'bottom')
+ggsave('training_curves.png', training_curves,
+       width = unit(5.75, 'in'), height = unit(4.76, 'in'))
