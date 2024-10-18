@@ -29,6 +29,7 @@ fi
 
 # Run both methods
 python ase_dftb_qm9.py 10000
+Rscript make_targets.R
 python tbmalt_train.py 10000 trained.csv loss.csv
 
 # Make plot comparing them
