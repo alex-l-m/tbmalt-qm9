@@ -9,11 +9,11 @@ def read_properties(xyz_path):
     # First two will be "gdb \d+"
     properties = property_line.split()
     return properties
-tbmalt_results = pd.read_csv('tbmalt_results.csv')
+tbmalt_results = pd.read_csv('trained.csv')
 
 rows = []
 for row in tbmalt_results.itertuples():
-    mol_id = row.molecule
+    mol_id = row.mol_id
     energy = row.energy
     xyz_path = f'qm9_xyz/{mol_id}.xyz'
     ase_atoms = next(read_xyz(open(xyz_path), 0))
@@ -32,7 +32,6 @@ for row in tbmalt_results.itertuples():
            'n_O': formula['O'],
            # n_F should be zero because of previous filtering, so not bothering
            # to retrieve that
-           'tbmalt_energy': energy,
            'qm9_u0': u0}
     rows.append(row)
 pd.DataFrame(rows).to_csv('regression_table.csv', index = False)

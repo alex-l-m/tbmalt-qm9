@@ -10,16 +10,21 @@ import torch
 from tbmalt import Geometry, OrbitalInfo
 from tbmalt.physics.dftb import Dftb2
 from tbmalt.physics.dftb.feeds import SkFeed, SkfOccupationFeed, HubbardFeed, RepulsiveSplineFeed
-from tbmalt.common.exceptions import ConvergenceError
 
 from ase.io.extxyz import read_xyz
 
 # Retrieve number of molecules to run on from first argument
 nmols = int(sys.argv[1])
+# First half is training set
+training_set_size = nmols // 2
 
 print(f'Running {nmols} molecules with TBMaLT')
 
+# Path for the predicted values
 outpath = sys.argv[2]
+
+# Path for the loss values
+losspath = sys.argv[3]
 
 Tensor = torch.Tensor
 
@@ -86,9 +91,7 @@ for path in xyz_paths:
             print(f'No target property for {mol_id}')
 
 geometry = Geometry.from_ase_atoms(ase_atoms)
-geometries = [geometry]
-orbs = [OrbitalInfo(geometry.atomic_numbers, shell_dict, shell_resolved=False) \
-        for geometry in geometries]
+orbs = OrbitalInfo(geometry.atomic_numbers, shell_dict, shell_resolved=False)
 
 # 2.2: Loading of the DFTB parameters into their associated feed objects
 # ----------------------------------------------------------------------
@@ -123,23 +126,19 @@ r_feed = RepulsiveSplineFeed.from_database(parameter_db_path, species)
 # 2.3: Construct the SCC-DFTB calculator object
 # ---------------------------------------------
 # calculator object.
-dftb_calculator = Dftb2(h_feed, s_feed, o_feed, u_feed, r_feed, suppress_SCF_error = True)
-# But setting suppress_SCF_error actually doesn't work? I should file a bug
-# report
-print('Suppress SCF error setting:')
-print(dftb_calculator.suppress_SCF_error)
-# Setting suppress_SCF_error directly
-dftb_calculator.suppress_SCF_error = True
-print('New suppress SCF error setting:')
-print(dftb_calculator.suppress_SCF_error)
+# filling_temp has to be given value to enable Fermi smearing.  without that,
+# not everything converges, due to oscillating charges. In addition, some
+# results converge but to the wrong value
+# filling_temp=0 should do it, but then I get errors during training saying that it's trying a Cholesky decomposition on a matrix that's not positive definite
+dftb_calculator = Dftb2(h_feed, s_feed, o_feed, u_feed, r_feed, filling_temp = 0.01)
 
 # Make a torch tensor of target properties
 target_properties = torch.tensor(target_property_list)
 
 # Construct machine learning object
-lr = 0.002
-# Use torch's mean absolute error loss
-criterion = torch.nn.L1Loss(reduction='mean')
+lr = 0.0001
+# Use torch's mean squared error loss
+criterion = torch.nn.MSELoss()
 
 h_var, s_var = [], []
 for key in h_feed.off_sites.keys():
@@ -152,28 +151,39 @@ for key in h_feed.off_sites.keys():
 
 optimizer = getattr(torch.optim, 'Adam')(h_var + s_var, lr=lr)
 print('Beginning training')
-# Write the header
+# Write the headers
+with open(losspath, 'w') as f:
+    writer = csv.writer(f)
+    writer.writerow(['epoch', 'split', 'loss'])
 with open(outpath, 'w') as f:
     writer = csv.writer(f)
-    writer.writerow(['epoch', 'molecule', 'status', 'energy', 'repulsive_energy', 'scc_energy', 'run_time'])
-for epoch in range(1):
+    writer.writerow(['epoch', 'mol_id', 'energy', 'repulsive_energy', 'scc_energy', 'run_time', 'split'])
+for epoch in range(20):
     start = time()
     # Run the DFTB calculation
-    dftb_calculator(geometry, orbs[0])
+    dftb_calculator(geometry, orbs)
     results = getattr(dftb_calculator, 'total_energy')
     repulsive_energy = dftb_calculator.repulsive_energy
     scc_energy = dftb_calculator.scc_energy
 
     optimizer.zero_grad()
-    loss = criterion(results, target_properties)
+    # Calculate loss only for the training molecules (first half)
+    loss = criterion(results[:training_set_size], target_properties[:training_set_size])
     loss.backward()
     optimizer.step()
+    # Also calculate test set loss, just so I can write it to the file
+    test_loss = criterion(results[training_set_size:], target_properties[training_set_size:])
     end = time()
     run_time = end - start
     print(f'Epoch {epoch}: time {run_time}, loss {loss.item()}')
+    with open(losspath, 'a') as f:
+        writer = csv.writer(f)
+        writer.writerow([epoch, 'train', loss.item()])
+        writer.writerow([epoch, 'test', test_loss.item()])
     with open(outpath, 'a') as f:
         writer = csv.writer(f)
     
-        for name, energy, repulsive_energy, scc_energy \
-                in zip(mol_names, results, repulsive_energy, scc_energy):
-            writer.writerow([epoch, name, 'NA', energy.item(), repulsive_energy.item(), scc_energy.item(), run_time])
+        for i, (name, energy, repulsive_energy, scc_energy) \
+                in enumerate(zip(mol_names, results, repulsive_energy, scc_energy)):
+            split = 'train' if i < training_set_size else 'test'
+            writer.writerow([epoch, name, energy.item(), repulsive_energy.item(), scc_energy.item(), run_time, split])
