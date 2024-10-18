@@ -9,10 +9,10 @@ def read_properties(xyz_path):
     # First two will be "gdb \d+"
     properties = property_line.split()
     return properties
-tbmalt_results = pd.read_csv('trained.csv')
+dftbplus_results = pd.read_csv('ase_dftb_qm9.csv')
 
 rows = []
-for row in tbmalt_results.itertuples():
+for row in dftbplus_results.itertuples():
     mol_id = row.mol_id
     energy = row.energy
     xyz_path = f'qm9_xyz/{mol_id}.xyz'
