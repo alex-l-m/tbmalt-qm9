@@ -4,8 +4,8 @@ library(cowplot)
 library(ggdark)
 library(tidymodels)
 library(glue)
-theme_set(dark_mode(theme_cowplot(font_size = 24)))
-#theme_set(theme_cowplot(font_size = 12))
+#theme_set(dark_mode(theme_cowplot(font_size = 24)))
+theme_set(theme_cowplot(font_size = 16))
 library(patchwork)
 
 dftb_results_infile <- 'ase_dftb_qm9.csv'
@@ -15,6 +15,19 @@ cols(
   mol_id = col_character(),
   energy = col_double())) |>
     rename(dftb_energy = energy)
+
+trained_results <- read_csv('trained.csv', col_types = cols(
+    epoch = col_integer(),
+    molecule = col_character(),
+    status = col_logical(),
+    energy = col_double(),
+    repulsive_energy = col_double(),
+    scc_energy = col_double(),
+    run_time = col_double()
+)) |>
+    rename(mol_id = molecule, trained_energy = energy) |>
+    filter(epoch == max(epoch, na.rm = TRUE)) |>
+    select(mol_id, trained_energy)
 
 TO_EV = 27.211386246
 pre_regression_table <- read_csv('regression_table.csv', col_types = cols(
@@ -31,19 +44,29 @@ pre_regression_table <- read_csv('regression_table.csv', col_types = cols(
     mutate(qm9_u0 = qm9_u0 * TO_EV) |>
     # Also the tbmalt energy
     mutate(tbmalt_energy = tbmalt_energy * TO_EV) |>
+    # Trained tbmalt
+    #inner_join(trained_results, by = 'mol_id') |>
+    left_join(trained_results, by = 'mol_id') |>
+    # Convert to eV
+    mutate(trained_energy = trained_energy * TO_EV) |>
     # Total number of atoms
     mutate(n_atoms = n_H + n_C + n_N + n_O) |>
     # Join with DFTB results
     inner_join(dftb, by = 'mol_id') |>
     # Filter out NA rows
+#    filter(!is.na(tbmalt_energy), !is.na(qm9_u0), !is.na(dftb_energy), !is.na(trained_energy)) |>
     filter(!is.na(tbmalt_energy), !is.na(qm9_u0), !is.na(dftb_energy)) |>
     # Subtract out atomic contributions with regression
     mutate(tbmalt_energy_ref = predict(lmrob(tbmalt_energy ~ n_H + n_C + n_N + n_O)),
            qm9_u0_ref = predict(lmrob(qm9_u0 ~ n_H + n_C + n_N + n_O)),
            dftb_energy_ref = predict(lmrob(dftb_energy ~ n_H + n_C + n_N + n_O)),
+#           trained_energy_ref = predict(lmrob(trained_energy ~ n_H + n_C + n_N + n_O)),
+           trained_energy_ref = tbmalt_energy_ref,
            tbmalt_energy_diff = tbmalt_energy - tbmalt_energy_ref,
            qm9_u0_diff = qm9_u0 - qm9_u0_ref,
-           dftb_energy_diff = dftb_energy - dftb_energy_ref)
+           dftb_energy_diff = dftb_energy - dftb_energy_ref,
+           trained_energy_diff = trained_energy - trained_energy_ref)
+
 
 
 # Calculate the range of the energy per atom in QM9
@@ -78,3 +101,40 @@ dftb_regression_plot <- pre_regression_table |>
 
 two_plots <- dftb_regression_plot + regression_plot + plot_layout(ncol = 2, nrow = 1)
 ggsave('dftbplus_tbmalt_comparison.png', two_plots, width = unit(11.51, 'in'), height = unit(4.75, 'in'))
+
+# Make a plot using facets instead of patchwork
+combined_regression_tbl <- pre_regression_table |>
+    # Normalize by number of atoms
+    mutate(`Untrained TBMaLT` = tbmalt_energy_diff / n_atoms,
+           qm9_u0 = qm9_u0_diff / n_atoms,
+           `Standard DFTB (DFTB+)` = dftb_energy_diff / n_atoms,
+           `Trained TBMaLT` = trained_energy_diff / n_atoms) |>
+    pivot_longer(cols = c(`Untrained TBMaLT`, `Standard DFTB (DFTB+)`, `Trained TBMaLT`),
+                 names_to = 'method', values_to = 'energy_diff_peratom') |>
+    # Put standard first in the plot, by converting to a factor
+    mutate(method = factor(method, levels = c('Standard DFTB (DFTB+)',
+                                              'Untrained TBMaLT',
+                                              'Trained TBMaLT'))) |>
+    mutate(outlier = energy_diff_peratom - qm9_u0 > 0.2)
+
+write_csv(combined_regression_tbl, 'combined_regression_table.csv')
+
+
+combined_regression_plot <- combined_regression_tbl |>
+#    filter(method != 'Standard DFTB (DFTB+)') |>
+    filter(method != 'Trained TBMaLT') |>
+    ggplot(aes(y = energy_diff_peratom, x = qm9_u0, color = outlier)) +
+    geom_abline(intercept = 0, slope = 1, color = 'blue', linetype = 'dashed') +
+    geom_point(size = 0, alpha = 0.5) +
+    geom_smooth(method = lmrob, se = FALSE) + 
+    coord_obs_pred() +
+    facet_wrap(~method, nrow = 1) +
+    ylab('Energy Difference per Atom') + xlab('QM9 DFT') +
+    # Limits based on the range of the QM9 data
+    xlim(lower_limit - .2, upper_limit + .2) +
+    ylim(lower_limit - .2, upper_limit + .2)
+ggsave('dftbplus_tbmalt_comparison_facet.png', combined_regression_plot,
+       width = unit(11.5, 'in'), height = unit(4.76, 'in'))
+
+# Linear model relating the DFTB+ values to the tbmalt values
+dftb_model <- lmrob(tbmalt_energy_diff ~ dftb_energy_diff, data = pre_regression_table)
